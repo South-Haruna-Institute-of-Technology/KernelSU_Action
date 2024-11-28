@@ -2,15 +2,18 @@
 # Patches author: weishu <twsxtd@gmail.com>
 # Shell authon: xiaoleGun <1592501605@qq.com>
 #               bdqllW <bdqllT@gmail.com>
-# Tested kernel versions: 5.4, 4.19, 4.14, 4.9
-# 20240123
+#               M3351AN <quq@outlook.it>
+# Tested kernel version: 4.4
+# 20241128
 
 patch_files=(
     fs/exec.c
     fs/open.c
     fs/read_write.c
     fs/stat.c
+    fs/namespace.c
     drivers/input/input.c
+    kernel/cgroup.c
 )
 
 for i in "${patch_files[@]}"; do
@@ -63,6 +66,24 @@ for i in "${patch_files[@]}"; do
             sed -i '/int vfs_fstatat(int dfd, const char __user \*filename, struct kstat \*stat,/i\#ifdef CONFIG_KSU\nextern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);\n#endif\n' fs/stat.c
             sed -i '/if ((flag & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT |/i\	#ifdef CONFIG_KSU\n	ksu_handle_stat(&dfd, &filename, &flag);\n	#endif\n' fs/stat.c
         fi
+        ;;
+
+    ## namespace.c
+    fs/namespace.c)
+        sed -i 's/static inline int check_mnt(struct mount \*mnt)/inline int check_mnt(struct mount \*mnt)/' fs/namespace.c
+        sed -i 's/static void mntput_no_expire(struct mount *mnt)/void mntput_no_expire(struct mount *mnt)/' fs/namespace.c
+        sed -i 's/static int do_umount(struct mount *mnt, int flags)/int do_umount(struct mount *mnt, int flags)/' fs/namespace.c
+        sed -i 's/static inline bool may_mount(void)/inline bool may_mount(void)/' fs/namespace.c
+        ;;
+
+    ## cgroup.c
+    kernel/cgroup.c)
+        sed -i '/static int cgroup_add_file(struct cgroup_subsys_state \*css, struct cgroup \*cgrp, struct cftype \*cft)/,/return 0;/ { /return 0;/i\
+        \tif (cft->ss && (cgrp->root->flags & CGRP_ROOT_NOPREFIX) && !(cft->flags & CFTYPE_NO_PREFIX)) {\
+        \t\tsnprintf(name, CGROUP_FILE_NAME_MAX, "%s.%s", cft->ss->name, cft->name);\
+        \t\tkernfs_create_link(cgrp->kn, name, kn);\
+        \t}\
+        }' kernel/cgroup.c
         ;;
 
     # drivers/input changes
