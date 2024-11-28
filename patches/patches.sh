@@ -14,7 +14,6 @@ patch_files=(
     fs/namespace.c
     kernel/cgroup.c
     drivers/input/input.c
-    security/selinux/hooks.c
 )
 
 for i in "${patch_files[@]}"; do
@@ -94,14 +93,6 @@ for i in "${patch_files[@]}"; do
         sed -i '/int disposition = input_get_disposition(dev, type, code, &value);/a\	#ifdef CONFIG_KSU\n	if (unlikely(ksu_input_hook))\n		ksu_handle_input_handle_event(&type, &code, &value);\n	#endif' drivers/input/input.c
         ;;
 
-    # allow init exec (kernelsu:ksud) under nosuid
-    ## hooks.c
-    security/selinux/hooks.c)
-        sed -i '/int nnp = (bprm->unsafe & LSM_UNSAFE_NO_NEW_PRIVS);/i\static u32 ksu_sid;\nchar *secdata;' security/selinux/hooks.c
-        sed -i '/if (new_tsec->sid == old_tsec->sid)/a\if (!ksu_sid)\n\tsecurity_secctx_to_secid("u:r:su:s0", strlen("u:r:su:s0"), &ksu_sid);\nerror = security_secid_to_secctx(old_tsec->sid, &secdata, &seclen);\nif (!error) {\n\trc = strcmp("u:r:init:s0", secdata);\n\tsecurity_release_secctx(secdata, seclen);\n\tif (rc == 0 && new_tsec->sid == ksu_sid)\n\t\treturn 0;\n}' security/selinux/hooks.c
-        sed -i '/int nosuid = (bprm->file->f_path.mnt->mnt_flags & MNT_NOSUID);\n   int rc;/a\  int nosuid = (bprm->file->f_path.mnt->mnt_flags & MNT_NOSUID);\n  int rc, error;\n    u32 seclen;' security/selinux/hooks.c
-        sed -i '/int nosuid = (bprm->file->f_path.mnt->mnt_flags & MNT_NOSUID);\n   int rc;/d' security/selinux/hooks.c
-        ;;
     esac
 
 done
